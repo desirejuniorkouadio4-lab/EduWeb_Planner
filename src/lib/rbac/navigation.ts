@@ -299,8 +299,8 @@ export const NAVIGATION: SectionNav[] = [
         libelle: "Registre d'appel",
         segment: "vie-scolaire/registre-appel",
         icone: "ClipboardList",
-        roles: ["admin", "chef_etablissement", "enseignant", "educateur", "parent", "eleve"],
-        statut: "a_venir",
+        roles: ["admin", "chef_etablissement", "enseignant", "educateur"],
+        statut: "disponible",
         phase: 3,
       },
       {

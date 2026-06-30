@@ -56,9 +56,12 @@ livraison. Légende : `[x]` fait · `[~]` en cours / partiel · `[ ]` à venir.
 - [x] **Inscriptions élèves** (par e-mail, une classe par année), filtré par établissement
 - [x] **Liens parent-élève** (par e-mail), filtré par établissement
 - [x] Modèles `AffectationEnseignant` + `Inscription` — migrés sur Neon
-- [ ] Registre d'appel · Cahier de texte · Notes & bulletins
+- [x] **Registre d'appel** (présences/absences/retards par classe et date ; modèles `Appel`+`Presence`)
+- [ ] Notes & bulletins (saisie enseignant, agrégation par période)
+- [ ] Cahier de texte
 - [ ] Notifications système (in-app) — socle commun
 - [ ] Vues dédiées : « Mes classes » (enseignant), « Ma classe » (élève), « Mes enfants » (parent)
+- [ ] Consultation des absences par parent / élève
 
 ## Phase 4 — Emplois du temps (solveur) ⬜ — module phare
 

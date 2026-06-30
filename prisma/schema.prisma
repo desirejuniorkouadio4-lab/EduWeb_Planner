@@ -85,6 +85,14 @@ enum RegimeNotation {
   semestre
 }
 
+/// Statut de présence d'un élève sur une séance (cahier §5.3.1).
+enum StatutPresence {
+  present
+  absent
+  retard
+  excuse
+}
+
 // ─────────────────────────────────────────────────────────────
 //  RBAC : Rôle, Utilisateur, Demande de rôle
 // ─────────────────────────────────────────────────────────────
@@ -139,6 +147,8 @@ model Utilisateur {
   // Vie scolaire (Phase 3)
   affectations     AffectationEnseignant[] @relation("AffectationsEnseignant")
   inscriptions     Inscription[]           @relation("InscriptionsEleve")
+  appelsSaisis     Appel[]                 @relation("AppelsSaisis")
+  presences        Presence[]              @relation("Presences")
 
   creeLe     DateTime @default(now())
   misAJourLe DateTime @updatedAt
@@ -284,6 +294,7 @@ model Discipline {
 
   grilles      GrilleHoraire[]
   affectations AffectationEnseignant[]
+  appels       Appel[]
 
   @@map("disciplines")
 }
@@ -306,6 +317,7 @@ model Classe {
 
   affectations AffectationEnseignant[]
   inscriptions Inscription[]
+  appels       Appel[]
 
   creeLe     DateTime @default(now())
   misAJourLe DateTime @updatedAt
@@ -446,6 +458,41 @@ model Inscription {
   @@index([classeId])
   @@index([eleveId])
   @@map("inscriptions")
+}
+
+/// Séance d'appel pour une classe à une date donnée (cahier §5.3.1).
+model Appel {
+  id           String      @id @default(cuid())
+  classeId     String
+  classe       Classe      @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  disciplineId String?
+  discipline   Discipline? @relation(fields: [disciplineId], references: [id])
+  date         DateTime // jour de la séance (normalisé à minuit UTC)
+  saisiParId   String
+  saisiPar     Utilisateur @relation("AppelsSaisis", fields: [saisiParId], references: [id])
+
+  presences Presence[]
+
+  creeLe DateTime @default(now())
+
+  @@index([classeId])
+  @@index([date])
+  @@map("appels")
+}
+
+/// Présence d'un élève sur une séance d'appel (cahier §5.3.1).
+model Presence {
+  id          String         @id @default(cuid())
+  appelId     String
+  appel       Appel          @relation(fields: [appelId], references: [id], onDelete: Cascade)
+  eleveId     String
+  eleve       Utilisateur    @relation("Presences", fields: [eleveId], references: [id], onDelete: Cascade)
+  statut      StatutPresence @default(present)
+  commentaire String?
+
+  @@unique([appelId, eleveId])
+  @@index([eleveId])
+  @@map("presences")
 }
 
 // ─────────────────────────────────────────────────────────────
