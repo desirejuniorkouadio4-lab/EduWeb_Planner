@@ -19,61 +19,58 @@ async function peutGerer(etablissementId: string) {
   return null;
 }
 
+interface LignePayload {
+  coef: number;
+  seances: number[];
+}
+
 /**
- * Enregistre la grille horaire d'un NIVEAU pour un établissement (surcharge du modèle national).
- * Champs attendus : etablissementId, niveauId, et `heures_<disciplineId>` par discipline.
- * Valeur vide → on supprime la surcharge (l'établissement retombe sur le modèle national).
+ * Enregistre la grille (séances + coefficient) d'un NIVEAU pour un établissement (Étape 3).
+ * Le volume hebdomadaire est dérivé de la somme des durées de séances.
  */
-export async function enregistrerGrilleNiveau(
-  _prev: EtatForm,
-  formData: FormData,
-): Promise<EtatForm> {
+export async function enregistrerSeances(_prev: EtatForm, formData: FormData): Promise<EtatForm> {
   const etablissementId = String(formData.get("etablissementId") ?? "");
   const niveauId = String(formData.get("niveauId") ?? "");
+  const brut = String(formData.get("payload") ?? "");
   if (!etablissementId || !niveauId) return { ok: false, message: "Données invalides." };
 
   const u = await peutGerer(etablissementId);
   if (!u) return { ok: false, message: "Action non autorisée (ou mode aperçu)." };
 
+  let payload: Record<string, LignePayload>;
   try {
-    const operations: Promise<unknown>[] = [];
-    for (const [cle, valeurBrute] of formData.entries()) {
-      if (!cle.startsWith("heures_")) continue;
-      const disciplineId = cle.slice("heures_".length);
-      const valeur = String(valeurBrute).trim();
+    payload = JSON.parse(brut);
+  } catch {
+    return { ok: false, message: "Données du formulaire illisibles." };
+  }
 
-      if (valeur === "") {
-        // Pas de surcharge : on supprime la ligne établissement éventuelle.
-        operations.push(
-          prisma.grilleHoraire.deleteMany({
-            where: { etablissementId, niveauId, disciplineId },
-          }),
-        );
-        continue;
-      }
-      const heures = Number(valeur);
-      if (Number.isNaN(heures) || heures < 0) continue;
-
-      operations.push(
-        prisma.grilleHoraire.upsert({
-          where: {
-            niveauId_disciplineId_etablissementId: { niveauId, disciplineId, etablissementId },
-          },
-          update: { heuresHebdo: heures },
-          create: {
-            niveauId,
-            disciplineId,
-            etablissementId,
-            heuresHebdo: heures,
-            coefficient: heures,
-          },
-        }),
-      );
-    }
+  try {
+    const operations = Object.entries(payload).map(([disciplineId, ligne]) => {
+      const seances = (ligne.seances ?? [])
+        .map((m) => Math.max(0, Math.round(Number(m) || 0)))
+        .filter((m) => m > 0);
+      const coef = Math.max(0, Number(ligne.coef) || 0);
+      const heuresHebdo = seances.reduce((a, b) => a + b, 0) / 60;
+      return prisma.grilleHoraire.upsert({
+        where: {
+          niveauId_disciplineId_etablissementId: { niveauId, disciplineId, etablissementId },
+        },
+        update: { seancesMinutes: seances, coefficient: coef, heuresHebdo, nbSeances: seances.length },
+        create: {
+          niveauId,
+          disciplineId,
+          etablissementId,
+          seancesMinutes: seances,
+          coefficient: coef,
+          heuresHebdo,
+          nbSeances: seances.length,
+        },
+      });
+    });
     await Promise.all(operations);
     revalidatePath(`/app/systeme/etablissements/${etablissementId}/grille`);
   } catch (e) {
-    console.error("[grille] erreur :", e);
+    console.error("[seances] erreur :", e);
     return { ok: false, message: "Erreur technique (base de données connectée ?)." };
   }
   return { ok: true, message: "Grille enregistrée." };

@@ -62,9 +62,9 @@ Refonte de la fiche établissement en console de configuration (Étapes 1→5 de
       (génération automatique des divisions)
 - [x] Aperçu en-tête du bulletin · sous-pages Structure (salles & classes) et Grille horaire
 - [x] Bouton **« Générer l'emploi du temps »** → écran de prérequis (point d'entrée Phase 4)
-- [ ] **Étape 3** : éditeur de séances par discipline (durée × nb/semaine → volume hebdo, statut)
-- [ ] **Étape 4** : RH — import CSV des enseignants + compétences (matières habilitées)
-- [ ] **Étape 5** : branchement du moteur de génération (Phase 4)
+- [x] **Étape 3** : éditeur de séances par discipline (durée × nb/semaine → volume hebdo, statut OK/À définir, total niveau ; onglets par niveau)
+- [x] **Étape 4** : RH — ajout d'enseignants, **import CSV** (+ modèle téléchargeable), **compétences** (matières habilitées)
+- [ ] **Étape 5** : branchement du moteur de génération (Phase 4 — solveur)
 
 ## Phase 3 — Vie scolaire : noyau 🟡 (en cours)
 

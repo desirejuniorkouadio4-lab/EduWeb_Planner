@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Table2, DoorOpen, CalendarCog, Settings2, FileBadge, Trash2 } from "lucide-react";
+import { ArrowLeft, Table2, DoorOpen, CalendarCog, Settings2, FileBadge, Trash2, Users } from "lucide-react";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Card } from "@/components/app/ui";
@@ -130,6 +130,9 @@ export default async function ConfigurationEtablissementPage({
         </Link>
         <Link href={`/app/systeme/etablissements/${id}/grille`} className="inline-flex items-center gap-2 rounded-full border border-forest-200 bg-white px-4 py-2 text-sm font-semibold text-forest-800 hover:bg-forest-50">
           <Table2 size={15} /> Volumes horaires (grille)
+        </Link>
+        <Link href={`/app/systeme/etablissements/${id}/enseignants`} className="inline-flex items-center gap-2 rounded-full border border-forest-200 bg-white px-4 py-2 text-sm font-semibold text-forest-800 hover:bg-forest-50">
+          <Users size={15} /> Enseignants & compétences
         </Link>
       </div>
 

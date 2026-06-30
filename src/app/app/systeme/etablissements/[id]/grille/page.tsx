@@ -5,61 +5,81 @@ import { ArrowLeft, Table2 } from "lucide-react";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Card } from "@/components/app/ui";
-import { GrilleNiveauForm } from "./grille-editor";
+import { GrilleNiveauEditor, type DisciplineLigne } from "./grille-editor";
 
 export const metadata: Metadata = { title: "Grille horaire" };
 export const dynamic = "force-dynamic";
 
-async function charger(id: string) {
-  try {
-    const etablissement = await prisma.etablissement.findUnique({ where: { id } });
-    if (!etablissement) return { statut: "introuvable" as const };
-    const [niveaux, disciplines, grilles] = await Promise.all([
-      prisma.niveau.findMany({ orderBy: { ordre: "asc" } }),
-      prisma.discipline.findMany({ orderBy: { nom: "asc" } }),
-      prisma.grilleHoraire.findMany({
-        where: { OR: [{ etablissementId: null }, { etablissementId: id }] },
-      }),
-    ]);
-    return { statut: "ok" as const, etablissement, niveaux, disciplines, grilles };
-  } catch (e) {
-    console.error("[grille] DB indisponible :", e);
-    return { statut: "erreur" as const };
-  }
-}
-
-export default async function GrillePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function GrillePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ niveau?: string }>;
+}) {
   const { id } = await params;
+  const { niveau: niveauParam } = await searchParams;
   const u = await requireRole(["admin", "etablissements_admin"]);
   if (u.roleReel === "etablissements_admin" && u.portee.etablissementId !== id) {
     redirect("/app/systeme/etablissements");
   }
 
-  const data = await charger(id);
-  if (data.statut === "introuvable") redirect("/app/systeme/etablissements");
-
-  if (data.statut !== "ok") {
-    return (
-      <div className="mx-auto max-w-4xl">
-        <PageHeader titre="Grille horaire" />
-        <Card>
-          <p className="text-sm text-ink-700/70">
-            Impossible de charger la grille. Vérifiez la connexion à la base de données.
-          </p>
-        </Card>
-      </div>
-    );
+  let etab: { nom: string } | null = null;
+  let niveaux: { id: string; nom: string }[] = [];
+  let disciplines: { id: string; nom: string; couleur: string | null }[] = [];
+  let erreur = false;
+  try {
+    [etab, niveaux, disciplines] = await Promise.all([
+      prisma.etablissement.findUnique({ where: { id }, select: { nom: true } }),
+      prisma.niveau.findMany({ orderBy: { ordre: "asc" }, select: { id: true, nom: true } }),
+      prisma.discipline.findMany({ orderBy: { nom: "asc" }, select: { id: true, nom: true, couleur: true } }),
+    ]);
+  } catch (e) {
+    console.error("[grille] DB indisponible :", e);
+    erreur = true;
   }
+  if (!erreur && !etab) redirect("/app/systeme/etablissements");
 
-  const { etablissement, niveaux, disciplines, grilles } = data;
+  const niveauSel = niveaux.find((n) => n.id === niveauParam) ?? niveaux[0] ?? null;
 
-  // Modèle national (etablissementId null) et surcharges établissement.
-  const national = new Map<string, number>();
-  const surcharge = new Map<string, number>();
-  for (const g of grilles) {
-    const cle = `${g.niveauId}:${g.disciplineId}`;
-    if (g.etablissementId === null) national.set(cle, g.heuresHebdo);
-    else surcharge.set(cle, g.heuresHebdo);
+  // Lignes pré-remplies pour le niveau sélectionné.
+  let lignes: DisciplineLigne[] = [];
+  if (!erreur && niveauSel) {
+    try {
+      const grilles = await prisma.grilleHoraire.findMany({
+        where: {
+          niveauId: niveauSel.id,
+          OR: [{ etablissementId: id }, { etablissementId: null }],
+        },
+      });
+      const etabMap = new Map<string, { seances: number[]; coef: number }>();
+      const natMap = new Map<string, { heures: number; coef: number }>();
+      for (const g of grilles) {
+        if (g.etablissementId === id) etabMap.set(g.disciplineId, { seances: g.seancesMinutes, coef: g.coefficient });
+        else natMap.set(g.disciplineId, { heures: g.heuresHebdo, coef: g.coefficient });
+      }
+      lignes = disciplines.map((d) => {
+        const o = etabMap.get(d.id);
+        const nat = natMap.get(d.id);
+        let seances: number[];
+        let coef: number;
+        if (o && o.seances.length > 0) {
+          seances = o.seances;
+          coef = o.coef;
+        } else if (nat && nat.heures > 0) {
+          const nb = Math.max(1, Math.round(nat.heures));
+          seances = Array.from({ length: nb }, () => 60);
+          coef = nat.coef;
+        } else {
+          seances = [];
+          coef = o?.coef ?? nat?.coef ?? 1;
+        }
+        return { disciplineId: d.id, nom: d.nom, couleur: d.couleur, coef, seances };
+      });
+    } catch (e) {
+      console.error("[grille] chargement :", e);
+      erreur = true;
+    }
   }
 
   return (
@@ -68,12 +88,12 @@ export default async function GrillePage({ params }: { params: Promise<{ id: str
         href={`/app/systeme/etablissements/${id}`}
         className="inline-flex items-center gap-2 text-sm font-medium text-forest-700 hover:text-forest-900"
       >
-        <ArrowLeft size={16} /> Retour à l'établissement
+        <ArrowLeft size={16} /> Configuration de l'établissement
       </Link>
 
       <PageHeader
-        titre={`Grille horaire — ${etablissement.nom}`}
-        description="Volume horaire hebdomadaire par niveau et discipline. Les valeurs partent du modèle national ; toute modification crée une surcharge propre à cet établissement (base du module Emplois du temps)."
+        titre={`Grille horaire — ${etab?.nom ?? ""}`}
+        description="Définissez, pour chaque niveau et discipline, le coefficient et les séances (durée × nombre/semaine). Le volume hebdomadaire est calculé automatiquement."
       />
 
       {u.apercuActif && (
@@ -82,39 +102,53 @@ export default async function GrillePage({ params }: { params: Promise<{ id: str
         </Card>
       )}
 
-      {niveaux.length === 0 || disciplines.length === 0 ? (
+      {erreur ? (
         <Card>
-          <p className="text-sm text-ink-700/60">
-            Référentiels non initialisés. Exécutez « npm run db:seed ».
-          </p>
+          <p className="text-sm text-ink-700/70">Impossible de charger la grille.</p>
+        </Card>
+      ) : niveaux.length === 0 || disciplines.length === 0 ? (
+        <Card>
+          <p className="text-sm text-ink-700/60">Référentiels non initialisés (npm run db:seed).</p>
         </Card>
       ) : (
-        <div className="space-y-5">
-          {niveaux.map((n) => {
-            const lignes = disciplines.map((d) => {
-              const cle = `${n.id}:${d.id}`;
-              const valSurcharge = surcharge.get(cle);
-              const valNational = national.get(cle);
-              const effectif = valSurcharge ?? valNational ?? "";
-              return {
-                disciplineId: d.id,
-                nom: d.nom,
-                couleur: d.couleur,
-                valeur: (effectif === "" ? "" : effectif) as number | "",
-                surcharge: valSurcharge !== undefined,
-              };
-            });
-            return (
-              <GrilleNiveauForm
-                key={n.id}
+        <>
+          {/* Onglets niveaux */}
+          <div className="flex flex-wrap gap-1.5">
+            {niveaux.map((n) => {
+              const actif = n.id === niveauSel?.id;
+              return (
+                <Link
+                  key={n.id}
+                  href={`/app/systeme/etablissements/${id}/grille?niveau=${n.id}`}
+                  className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    actif ? "bg-forest-800 text-cream-50" : "border border-cream-300 bg-white text-forest-800 hover:bg-forest-50"
+                  }`}
+                >
+                  {n.nom}
+                </Link>
+              );
+            })}
+          </div>
+
+          {niveauSel && (
+            <Card className="overflow-x-auto">
+              <div className="mb-2 flex items-center gap-2">
+                <Table2 size={18} className="text-forest-700" />
+                <h2 className="font-display text-lg font-bold text-forest-900">{niveauSel.nom}</h2>
+              </div>
+              <p className="mb-4 text-xs text-ink-700/55">
+                Valeurs pré-remplies depuis le modèle national. Toute modification crée une surcharge
+                propre à l'établissement.
+              </p>
+              <GrilleNiveauEditor
                 etablissementId={id}
-                niveauId={n.id}
-                niveauNom={n.nom}
-                lignes={lignes}
+                niveauId={niveauSel.id}
+                niveauNom={niveauSel.nom}
+                disciplines={lignes}
               />
-            );
-          })}
-        </div>
+            </Card>
+          )}
+        </>
       )}
     </div>
   );
