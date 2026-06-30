@@ -109,7 +109,10 @@ Refonte de la fiche établissement en console de configuration (Étapes 1→5 de
 
 ## Phase 6 — Inspection, Rapports, Statistiques 🟡 (en cours)
 
-- [ ] Inspection (visites, grilles d'évaluation, rapports, suivi des recommandations)
+- [x] **Inspection** — visites (planification, types, statuts), **comptes-rendus** (observations +
+      appréciation /20), **recommandations** avec priorité et suivi de traitement ; RBAC
+      inspecteur (périmètre régional) / DRENA (lecture) / admin ; notifie les chefs d'établissement.
+      Modèles `Visite` + `Recommandation`.
 - [ ] Rapports & Activités
 - [~] Statistiques + tableaux de bord **Recharts** — livrées : **établissement** (KPI + effectifs
       par niveau, cycles, assiduité, moyennes par discipline), **par classe** (moyennes, assiduité,

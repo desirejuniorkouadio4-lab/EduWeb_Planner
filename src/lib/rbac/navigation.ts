@@ -427,9 +427,10 @@ export const NAVIGATION: SectionNav[] = [
         libelle: "Inspection",
         segment: "inspection/visites",
         icone: "Stamp",
-        roles: ["admin", "inspecteur", "drena", "conseiller_pedagogique"],
-        statut: "a_venir",
+        roles: ["admin", "inspecteur", "drena"],
+        statut: "disponible",
         phase: 6,
+        description: "Visites, comptes-rendus et suivi des recommandations.",
       },
       {
         id: "grille-evaluation",

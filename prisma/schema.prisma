@@ -101,6 +101,34 @@ enum TypeNotification {
   role
 }
 
+/// Type de visite d'inspection (cahier §5 — inspection & supervision).
+enum TypeVisite {
+  classe
+  etablissement
+  suivi
+}
+
+/// Statut d'une visite d'inspection.
+enum StatutVisite {
+  planifiee
+  realisee
+  annulee
+}
+
+/// Priorité d'une recommandation d'inspection.
+enum PrioriteRecommandation {
+  basse
+  moyenne
+  haute
+}
+
+/// Statut de traitement d'une recommandation.
+enum StatutRecommandation {
+  ouverte
+  en_cours
+  traitee
+}
+
 // ─────────────────────────────────────────────────────────────
 //  RBAC : Rôle, Utilisateur, Demande de rôle
 // ─────────────────────────────────────────────────────────────
@@ -161,6 +189,8 @@ model Utilisateur {
   notesSaisies       Note[]                  @relation("NotesSaisies")
   cahiersSaisis      CahierTexte[]           @relation("CahiersSaisis")
   notifications      Notification[]          @relation("NotificationsRecues")
+  visitesInspecteur  Visite[]                @relation("VisitesInspecteur")
+  visitesEnseignant  Visite[]                @relation("VisitesEnseignant")
   competences        CompetenceEnseignant[]  @relation("CompetencesEnseignant")
   niveauxIntervention NiveauEnseignant[]     @relation("NiveauxEnseignant")
 
@@ -312,6 +342,7 @@ model Etablissement {
   niveauxEnseignant NiveauEnseignant[]
   effectifsEnseignant EffectifEnseignant[]
   creneaux       Creneau[]
+  visites        Visite[]
 
   creeLe     DateTime @default(now())
   misAJourLe DateTime @updatedAt
@@ -719,6 +750,48 @@ model Notification {
   @@index([destinataireId, lu])
   @@index([creeLe])
   @@map("notifications")
+}
+
+/// Visite d'inspection d'un établissement (et éventuellement d'un enseignant) — cahier partie 6.
+model Visite {
+  id              String        @id @default(cuid())
+  inspecteurId    String
+  inspecteur      Utilisateur   @relation("VisitesInspecteur", fields: [inspecteurId], references: [id])
+  etablissementId String
+  etablissement   Etablissement @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+  enseignantId    String?
+  enseignant      Utilisateur?  @relation("VisitesEnseignant", fields: [enseignantId], references: [id])
+
+  date        DateTime
+  type        TypeVisite   @default(classe)
+  statut      StatutVisite @default(planifiee)
+  objet       String
+  observations String?
+  noteGlobale Float? // appréciation globale /20
+
+  recommandations Recommandation[]
+
+  creeLe     DateTime @default(now())
+  misAJourLe DateTime @updatedAt
+
+  @@index([inspecteurId])
+  @@index([etablissementId])
+  @@map("visites")
+}
+
+/// Recommandation issue d'une visite d'inspection, avec suivi de traitement.
+model Recommandation {
+  id       String                 @id @default(cuid())
+  visiteId String
+  visite   Visite                 @relation(fields: [visiteId], references: [id], onDelete: Cascade)
+  texte    String
+  priorite PrioriteRecommandation @default(moyenne)
+  statut   StatutRecommandation   @default(ouverte)
+  echeance DateTime?
+  creeLe   DateTime               @default(now())
+
+  @@index([visiteId])
+  @@map("recommandations")
 }
 
 // ─────────────────────────────────────────────────────────────
