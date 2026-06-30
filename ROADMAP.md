@@ -131,7 +131,9 @@ Refonte de la fiche établissement en console de configuration (Étapes 1→5 de
       paiement carte + Mobile Money, récapitulatif, **paiement en mode démo** → abonnement actif ;
       partenaires IZEN / E-School). Modèles `CodePromo`, `DemandeCodePromo`, `AbonnementPremium`.
       Passerelles de paiement réelles (Stripe + Mobile Money) à brancher avec les clés.
-- [ ] Alertes SMS (envoi réel, gated env) · Assistant d'installation
+- [x] **Assistant d'installation** (checklist de mise en route calculée depuis l'état réel :
+      année, régions, référentiels, grille nationale, établissement/classes/salles, 1er emploi du
+      temps + état des intégrations Resend/Stripe/URL) · [ ] Alertes SMS (envoi réel, gated env)
 - [x] **Journal d'activité** (audit des actions sensibles, filtrable, admin) · [ ] Assistant d'installation
 
 ---

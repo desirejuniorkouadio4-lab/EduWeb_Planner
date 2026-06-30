@@ -218,9 +218,10 @@ export const NAVIGATION: SectionNav[] = [
         libelle: "Installation",
         segment: "systeme/installation",
         icone: "Download",
-        roles: ["admin", "etablissements_admin", "cafop_admin", "apfc_admin"],
-        statut: "a_venir",
+        roles: ["admin"],
+        statut: "disponible",
         phase: 7,
+        description: "Assistant de mise en route : checklist de configuration.",
       },
       {
         id: "configuration",
