@@ -185,6 +185,14 @@ enum StatutSMS {
   echec
 }
 
+/// Statut d'un rendez-vous (parent ↔ personnel).
+enum StatutRendezVous {
+  demande
+  confirme
+  refuse
+  annule
+}
+
 // ─────────────────────────────────────────────────────────────
 //  RBAC : Rôle, Utilisateur, Demande de rôle
 // ─────────────────────────────────────────────────────────────
@@ -249,6 +257,8 @@ model Utilisateur {
   messagesRecus      Message[]               @relation("MessagesRecus")
   demandesPromo      DemandeCodePromo[]      @relation("DemandesPromo")
   abonnementsSouscrits AbonnementPremium[]   @relation("AbonnementsSouscrits")
+  rdvDemandes        RendezVous[]            @relation("RdvDemandes")
+  rdvRecus           RendezVous[]            @relation("RdvRecus")
   visitesInspecteur  Visite[]                @relation("VisitesInspecteur")
   visitesEnseignant  Visite[]                @relation("VisitesEnseignant")
   competences        CompetenceEnseignant[]  @relation("CompetencesEnseignant")
@@ -942,6 +952,23 @@ model AlerteSMS {
 
   @@index([creeLe])
   @@map("alertes_sms")
+}
+
+/// Rendez-vous entre un demandeur (parent/personnel) et un destinataire (personnel).
+model RendezVous {
+  id             String           @id @default(cuid())
+  demandeurId    String
+  demandeur      Utilisateur      @relation("RdvDemandes", fields: [demandeurId], references: [id], onDelete: Cascade)
+  destinataireId String
+  destinataire   Utilisateur      @relation("RdvRecus", fields: [destinataireId], references: [id], onDelete: Cascade)
+  date           DateTime
+  motif          String
+  statut         StatutRendezVous @default(demande)
+  creeLe         DateTime         @default(now())
+
+  @@index([demandeurId])
+  @@index([destinataireId])
+  @@map("rendez_vous")
 }
 
 /// Visite d'inspection d'un établissement (et éventuellement d'un enseignant) — cahier partie 6.
