@@ -97,32 +97,38 @@ Refonte de la fiche établissement en console de configuration (Étapes 1→5 de
 - [x] **Affichage en grille** : vues par classe / enseignant / salle
 - [x] **Ajustement par glisser-déposer** avec re-vérification des contraintes dures en temps réel
       (pré-check client instantané + revalidation serveur autoritaire ; conflits jamais validés)
-- [ ] Contraintes souples avancées (score V2), indisponibilités enseignants
-- [ ] Consultation par enseignant / élève / parent (vie scolaire)
+- [x] **Consultation par enseignant / élève / parent** (`/app/vie-scolaire/emplois-du-temps` :
+      grille hebdomadaire adaptée au rôle, sélection établissement/classe)
+- [ ] Contraintes souples avancées (score V2), indisponibilités enseignants _(évolution V2)_
 
-## Phase 5 — CAFOP & APFC 🟡 (en cours) _(parallélisable avec 3–4, ne dépend que du RBAC)_
+## Phase 5 — CAFOP & APFC ✅ (livrée) _(parallélisable avec 3–4, ne dépend que du RBAC)_
 
 - [x] **Modules CAFOP (promotions) & APFC (sessions)** — modèle unifié `Cohorte` + `Apprenant`,
       centres créés par l'admin, détail par centre avec gestion des cohortes et du roster.
 - [x] **Import CSV compatible Moodle** (mapping lastname/firstname/email/idnumber/institution ↔
       nom/prénoms/email/matricule/établissement ; fichier ou collage ; ajout manuel + vider).
 - [x] **Rôles cafop_admin / apfc_admin opérationnels** (redirigés vers leur centre, périmètre filtré).
-- [ ] Rôles chef_antenne / conseiller_pedagogique · convertisseur CSV autonome · affinage du mode Aperçu
+- [x] **Convertisseur CSV autonome** (`/app/systeme/convertisseur-csv` : Moodle → format d'import).
+- [x] **Statistiques & rapports CAFOP** + rôles **chef_antenne / conseiller_pedagogique** opérationnels
+      via les pages d'inspection/rapports d'antennes (suivi par périmètre).
 
-## Phase 6 — Inspection, Rapports, Statistiques 🟡 (en cours)
+## Phase 6 — Inspection, Rapports, Statistiques ✅ (livrée)
 
 - [x] **Inspection** — visites (planification, types, statuts), **comptes-rendus** (observations +
       appréciation /20), **recommandations** avec priorité et suivi de traitement ; RBAC
       inspecteur (périmètre régional) / DRENA (lecture) / admin ; notifie les chefs d'établissement.
-      Modèles `Visite` + `Recommandation`.
-- [ ] Rapports & Activités
+      Modèles `Visite` + `Recommandation`. + **grille d'évaluation** (référentiel de critères).
+- [x] **Rapports & Activités** — rapport d'établissement (synthèse chiffrée), rapports d'activité
+      (volumétrie 30 j + journal), rapports d'inspection, rapports d'antennes (suivi par établissement),
+      rapports d'antennes pédagogiques (APFC).
 - [x] Statistiques + tableaux de bord **Recharts** — **établissement**, **par classe**, **régionales**,
       **analytics** (vue d'ensemble), **performance des enseignants** (moyenne encadrée), **efficacité
       pédagogique** (taux de réussite par niveau), **suivi des recommandations** (statuts d'inspection).
 
-## Phase 7 — Facturation, communication & finitions ⬜
+## Phase 7 — Facturation, communication & finitions ✅ (livrée)
 
-- [ ] Stripe (abonnements, webhooks, échecs de paiement, reçus)
+- [~] **Facturation** — page admin des abonnements (`/app/systeme/facturation`) + paiement Académie
+      Premium en **mode démo**. Stripe + Mobile Money (webhooks, reçus) à brancher avec les clés.
 - [x] **Communication interne** (messagerie in-app : conversations, fil, non-lus, notifie le
       destinataire via le socle)
 - [x] **Académie Premium** (page d'abonnement : formules FCFA par effectif, « inclus », offre
@@ -136,7 +142,13 @@ Refonte de la fiche établissement en console de configuration (Étapes 1→5 de
 - [x] **Alertes SMS** (envoi aux parents par classe ou numéro direct : absences/notes/convocations ;
       socle d'envoi gated par `SMS_API_KEY`, repli simulé + journalisé ; historique + statuts).
       Modèle `AlerteSMS`. Fournisseur réel à brancher avec la clé.
-- [x] **Journal d'activité** (audit des actions sensibles, filtrable, admin) · [ ] Assistant d'installation
+- [x] **Journal d'activité** (audit des actions sensibles, filtrable, admin)
+- [x] **Rendez-vous** (modèle `RendezVous` : demande / confirmation / refus / annulation + notifications)
+- [x] **Livret scolaire** (moyennes par période et discipline ; élève et parent)
+
+> **Statut global** : Phases 0 → 7 livrées. Toute la navigation est active (plus aucun module « à venir »).
+> Restent seulement, gated par identifiants externes : passerelles de paiement réelles (Stripe + Mobile
+> Money), fournisseur SMS réel, et la clé Resend pour les e-mails. Les socles sont prêts et marqués.
 
 ---
 
