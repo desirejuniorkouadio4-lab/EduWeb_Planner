@@ -1,0 +1,421 @@
+// EduWeb Planner — Schéma Prisma de référence
+// Phase 0/1 : RBAC à périmètre + authentification.
+// Les entités de périmètre (Region, Etablissement, Cafop, Apfc) sont posées ici
+// en version minimale ; elles seront étoffées en Phase 2 (cf. cahier des charges §3.1).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Prisma 7 : l'URL n'est plus déclarée ici.
+  // - Au runtime, elle est fournie via le driver adapter (@prisma/adapter-pg) — voir src/lib/prisma.ts.
+  // - Pour les migrations, elle est lue depuis prisma.config.ts (env DIRECT_URL).
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Énumérations
+// ─────────────────────────────────────────────────────────────
+
+/// Statut du COMPTE — découplé du statut de la demande de rôle (cahier §6.1).
+enum StatutCompte {
+  en_attente_verification // inscrit, e-mail pas encore confirmé
+  actif // e-mail confirmé : peut se connecter
+  suspendu
+}
+
+/// Statut d'une demande de rôle (cahier §6.6).
+enum StatutDemandeRole {
+  en_attente
+  approuvee
+  refusee
+}
+
+/// Type de jeton à usage unique (vérification e-mail / réinitialisation mot de passe).
+enum TypeJeton {
+  verification_email
+  reinitialisation_mot_de_passe
+}
+
+// ── Phase 2 : structure & établissements ──
+
+enum TypeEtablissement {
+  prescolaire
+  primaire
+  college
+  lycee
+  groupe_scolaire
+  autre
+}
+
+enum StatutEtablissement {
+  public
+  prive
+  confessionnel
+  autre
+}
+
+enum TypeSalle {
+  ordinaire
+  laboratoire
+  salle_informatique
+  atelier
+  salle_eps
+  autre
+}
+
+/// Cycle d'un niveau scolaire.
+enum CycleNiveau {
+  prescolaire
+  primaire
+  college
+  lycee
+}
+
+/// Régime de vacation (cahier §5.3.0-e) : simple ou double vacation.
+enum RegimeVacation {
+  simple
+  double
+}
+
+/// Régime de notation par défaut (cahier §5.2.17).
+enum RegimeNotation {
+  trimestre
+  semestre
+}
+
+// ─────────────────────────────────────────────────────────────
+//  RBAC : Rôle, Utilisateur, Demande de rôle
+// ─────────────────────────────────────────────────────────────
+
+/// Définition statique d'un profil d'accès (les 13 rôles, cahier §4.1).
+model Role {
+  id           String  @id @default(cuid())
+  nomTechnique String  @unique // ex : "admin", "enseignant" (snake_case, cf. CLAUDE.md §8)
+  libelle      String // ex : "Administrateur Système"
+  description  String?
+  rang         Int     @default(0) // ordre d'affichage / niveau de privilège indicatif
+
+  utilisateurs Utilisateur[] @relation("RoleActif")
+  demandes     DemandeRole[] @relation("RoleDemande")
+
+  @@map("roles")
+}
+
+/// Compte d'un acteur de la plateforme (cahier §3.1, §4.2).
+model Utilisateur {
+  id             String       @id @default(cuid())
+  email          String       @unique
+  motDePasseHash String
+  nom            String?
+  prenoms        String?
+  telephone      String?
+  photoUrl       String?
+  statutCompte   StatutCompte @default(en_attente_verification)
+  emailVerifieLe DateTime?
+  langue         String       @default("fr")
+
+  // Rôle actif (technique). À l'inscription = "eleve" par défaut (cahier §6.2).
+  roleActifId String
+  roleActif   Role   @relation("RoleActif", fields: [roleActifId], references: [id])
+
+  // Périmètre — nullable selon le rôle (cahier §3.2, §4.2).
+  etablissementId String?
+  etablissement   Etablissement? @relation(fields: [etablissementId], references: [id])
+  cafopId         String?
+  cafop           Cafop?         @relation(fields: [cafopId], references: [id])
+  apfcId          String?
+  apfc            Apfc?          @relation(fields: [apfcId], references: [id])
+  regionId        String?
+  region          Region?        @relation(fields: [regionId], references: [id])
+
+  // Relations
+  demandes         DemandeRole[]     @relation("DemandeUtilisateur")
+  demandesTraitees DemandeRole[]     @relation("DemandeTraitePar")
+  liensCommeParent LienParentEleve[] @relation("Parent")
+  liensCommeEleve  LienParentEleve[] @relation("Eleve")
+  jetons           Jeton[]
+
+  creeLe     DateTime @default(now())
+  misAJourLe DateTime @updatedAt
+
+  @@index([roleActifId])
+  @@index([etablissementId])
+  @@index([cafopId])
+  @@index([apfcId])
+  @@index([regionId])
+  @@map("utilisateurs")
+}
+
+/// Demande d'attribution / changement de rôle (couvre l'inscription initiale, cahier §6).
+model DemandeRole {
+  id            String      @id @default(cuid())
+  utilisateurId String
+  utilisateur   Utilisateur @relation("DemandeUtilisateur", fields: [utilisateurId], references: [id], onDelete: Cascade)
+
+  roleDemandeId String
+  roleDemande   Role   @relation("RoleDemande", fields: [roleDemandeId], references: [id])
+
+  statut StatutDemandeRole @default(en_attente)
+
+  // Périmètre DÉCLARÉ par le demandeur (texte libre + identifiants si connus).
+  structureDeclaree      String? // ex : nom de l'établissement saisi à l'inscription
+  etablissementDeclareId String?
+  cafopDeclareId         String?
+  apfcDeclareId          String?
+  regionDeclareeId       String?
+
+  motif      String? // message du demandeur et/ou commentaire de l'administrateur
+  creeLe     DateTime  @default(now())
+  traiteLe   DateTime?
+  // Anticipe la délégation future par périmètre (cahier §6.4) — aucune migration requise plus tard.
+  traiteParId String?
+  traitePar   Utilisateur? @relation("DemandeTraitePar", fields: [traiteParId], references: [id])
+
+  @@index([statut])
+  @@index([utilisateurId])
+  @@map("demandes_role")
+}
+
+/// Relation N↔N entre un compte parent et un ou plusieurs comptes élèves (cahier §3.3).
+model LienParentEleve {
+  id       String      @id @default(cuid())
+  parentId String
+  parent   Utilisateur @relation("Parent", fields: [parentId], references: [id], onDelete: Cascade)
+  eleveId  String
+  eleve    Utilisateur @relation("Eleve", fields: [eleveId], references: [id], onDelete: Cascade)
+  lien     String? // "père", "mère", "tuteur légal"…
+  creeLe   DateTime    @default(now())
+
+  @@unique([parentId, eleveId])
+  @@index([parentId])
+  @@index([eleveId])
+  @@map("liens_parent_eleve")
+}
+
+/// Jeton à usage unique pour la confirmation d'e-mail et la réinitialisation de mot de passe (cahier §6.2, §6.5).
+model Jeton {
+  id            String      @id @default(cuid())
+  token         String      @unique
+  type          TypeJeton
+  utilisateurId String
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  expireLe      DateTime
+  utiliseLe     DateTime?
+  creeLe        DateTime    @default(now())
+
+  @@index([utilisateurId])
+  @@map("jetons")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Entités de périmètre (minimales en Phase 1, étoffées en Phase 2)
+// ─────────────────────────────────────────────────────────────
+
+/// Découpage administratif régional (rattachement DRENA/DRENAET, cahier §3.1).
+model Region {
+  id   String  @id @default(cuid())
+  nom  String  @unique
+  code String? @unique
+
+  etablissements Etablissement[]
+  cafops         Cafop[]
+  apfcs          Apfc[]
+  utilisateurs   Utilisateur[]
+
+  creeLe DateTime @default(now())
+
+  @@map("regions")
+}
+
+/// Établissement scolaire (cahier §3.1, détaillé en Phase 2).
+model Etablissement {
+  id        String              @id @default(cuid())
+  nom       String
+  code      String?             @unique
+  type      TypeEtablissement   @default(college)
+  statut    StatutEtablissement @default(public)
+  ville     String?
+  adresse   String?
+  email     String?
+  telephone String?
+  /// Régime de vacation par défaut de l'établissement (surchargé par niveau si besoin).
+  regimeVacation RegimeVacation @default(simple)
+
+  regionId String?
+  region   Region? @relation(fields: [regionId], references: [id])
+
+  utilisateurs Utilisateur[]
+  classes      Classe[]
+  salles       Salle[]
+  grilles      GrilleHoraire[]
+
+  creeLe     DateTime @default(now())
+  misAJourLe DateTime @updatedAt
+
+  @@index([regionId])
+  @@map("etablissements")
+}
+
+/// Niveau scolaire national (ex : 6ème, Seconde C) — cahier §3.1.
+model Niveau {
+  id    String      @id @default(cuid())
+  nom   String      @unique
+  code  String?     @unique
+  ordre Int         @default(0)
+  cycle CycleNiveau @default(college)
+
+  classes Classe[]
+  grilles GrilleHoraire[]
+
+  @@map("niveaux")
+}
+
+/// Discipline / matière enseignée — cahier §3.1.
+model Discipline {
+  id      String  @id @default(cuid())
+  nom     String  @unique
+  code    String? @unique
+  couleur String? // code couleur pour l'affichage des emplois du temps
+
+  grilles GrilleHoraire[]
+
+  @@map("disciplines")
+}
+
+/// Classe pédagogique au sein d'un établissement (ex : 6ème A) — cahier §3.1.
+model Classe {
+  id       String @id @default(cuid())
+  nom      String
+  effectif Int    @default(0)
+
+  etablissementId String
+  etablissement   Etablissement @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+  niveauId        String
+  niveau          Niveau        @relation(fields: [niveauId], references: [id])
+
+  anneeScolaireId String?
+  anneeScolaire   AnneeScolaire? @relation(fields: [anneeScolaireId], references: [id])
+
+  regimeVacation RegimeVacation @default(simple)
+
+  creeLe     DateTime @default(now())
+  misAJourLe DateTime @updatedAt
+
+  @@index([etablissementId])
+  @@index([niveauId])
+  @@map("classes")
+}
+
+/// Salle physique d'un établissement (capacité + type) — cahier §3.1, §5.3.0-e.
+model Salle {
+  id        String    @id @default(cuid())
+  nom       String
+  capacite  Int       @default(0)
+  type      TypeSalle @default(ordinaire)
+
+  etablissementId String
+  etablissement   Etablissement @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+
+  creeLe DateTime @default(now())
+
+  @@index([etablissementId])
+  @@map("salles")
+}
+
+/// Année scolaire (ex : « 2025-2026 ») — base des inscriptions (cahier §5.2.17).
+model AnneeScolaire {
+  id      String    @id @default(cuid())
+  libelle String    @unique
+  debut   DateTime?
+  fin     DateTime?
+  active  Boolean   @default(false)
+
+  classes Classe[]
+
+  @@map("annees_scolaires")
+}
+
+/// Grille horaire : volume hebdomadaire par niveau et discipline (cahier §5.3.0-e).
+/// `etablissementId` null = modèle national par défaut ; non-null = surcharge établissement.
+model GrilleHoraire {
+  id          String @id @default(cuid())
+  niveauId    String
+  niveau      Niveau @relation(fields: [niveauId], references: [id], onDelete: Cascade)
+  disciplineId String
+  discipline  Discipline @relation(fields: [disciplineId], references: [id], onDelete: Cascade)
+
+  etablissementId String?
+  etablissement   Etablissement? @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+
+  heuresHebdo Float @default(0) // volume horaire hebdomadaire (heures)
+  nbSeances   Int?  // nombre de séances hebdomadaires souhaité
+  coefficient Float @default(1)
+
+  @@unique([niveauId, disciplineId, etablissementId])
+  @@index([niveauId])
+  @@index([etablissementId])
+  @@map("grilles_horaires")
+}
+
+/// Configuration globale de la plateforme (singleton) — cahier §5.2.17.
+model Configuration {
+  id                   String         @id @default("global")
+  anneeScolaireCourante String?
+  regimeNotation       RegimeNotation @default(trimestre)
+  misAJourLe           DateTime       @updatedAt
+
+  @@map("configuration")
+}
+
+/// Centre d'Animation et de Formation Pédagogique (cahier §3.1).
+model Cafop {
+  id       String  @id @default(cuid())
+  nom      String
+  regionId String?
+  region   Region? @relation(fields: [regionId], references: [id])
+
+  utilisateurs Utilisateur[]
+
+  creeLe DateTime @default(now())
+
+  @@index([regionId])
+  @@map("cafops")
+}
+
+/// Antenne Pédagogique de Formation Continue (cahier §3.1).
+model Apfc {
+  id       String  @id @default(cuid())
+  nom      String
+  regionId String?
+  region   Region? @relation(fields: [regionId], references: [id])
+
+  utilisateurs Utilisateur[]
+
+  creeLe DateTime @default(now())
+
+  @@index([regionId])
+  @@map("apfc")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Audit
+// ─────────────────────────────────────────────────────────────
+
+/// Trace d'une action effectuée sur la plateforme (audit, cahier §5.2.13).
+/// Pas de FK vers Utilisateur : l'audit doit survivre à la suppression d'un compte.
+model JournalActivite {
+  id            String   @id @default(cuid())
+  utilisateurId String?
+  acteurEmail   String? // capture lisible même si le compte est supprimé ensuite
+  action        String // ex : "demande_role.approuvee"
+  cible         String? // ex : "Utilisateur:cuid"
+  details       Json?
+  creeLe        DateTime @default(now())
+
+  @@index([utilisateurId])
+  @@index([action])
+  @@index([creeLe])
+  @@map("journal_activite")
+}

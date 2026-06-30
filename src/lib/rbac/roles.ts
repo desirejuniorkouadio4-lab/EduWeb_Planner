@@ -1,0 +1,187 @@
+/**
+ * Définition statique des 13 rôles de la plateforme (cahier des charges §4.1).
+ *
+ * ⚠️ Les identifiants techniques (snake_case) sont contractuels : ils servent tels quels
+ * en base de données et dans tout le code (CLAUDE.md §8). Ne pas les renommer.
+ *
+ * Cette couche est la SOURCE UNIQUE de vérité des rôles. Aucun module ne doit redéfinir
+ * cette liste localement — toujours l'importer d'ici (CLAUDE.md §3 : RBAC centralisé).
+ */
+
+export const ROLE_IDS = [
+  "admin",
+  "etablissements_admin",
+  "cafop_admin",
+  "apfc_admin",
+  "drena",
+  "inspecteur",
+  "conseiller_pedagogique",
+  "chef_antenne",
+  "chef_etablissement",
+  "enseignant",
+  "educateur",
+  "parent",
+  "eleve",
+] as const;
+
+export type RoleId = (typeof ROLE_IDS)[number];
+
+/** Nature du périmètre attaché à un rôle (cahier §4.3). */
+export type TypePortee =
+  | "global" // admin : aucune restriction
+  | "etablissement" // rattaché à un établissement
+  | "cafop" // rattaché à un CAFOP
+  | "apfc" // rattaché à une APFC
+  | "antenne" // rattaché à une antenne pédagogique
+  | "region" // rattaché à une région / zone
+  | "personnel"; // périmètre = un ensemble de personnes (parent, élève)
+
+/** Regroupement par public cible (cahier §1.5) — sert au classement dans l'UI. */
+export type GroupeRole = "pilotage" | "formation" | "etablissement" | "famille";
+
+export interface DefinitionRole {
+  id: RoleId;
+  libelle: string;
+  description: string;
+  portee: TypePortee;
+  groupe: GroupeRole;
+  /** Niveau de privilège indicatif (plus élevé = plus de pouvoir). Sert au tri d'affichage. */
+  rang: number;
+}
+
+export const ROLES: Record<RoleId, DefinitionRole> = {
+  admin: {
+    id: "admin",
+    libelle: "Administrateur Système",
+    description:
+      "Accès complet : comptes, rôles, établissements, structures de formation et configuration globale.",
+    portee: "global",
+    groupe: "pilotage",
+    rang: 100,
+  },
+  etablissements_admin: {
+    id: "etablissements_admin",
+    libelle: "Admin Établissements",
+    description: "Gestion administrative des établissements scolaires rattachés.",
+    portee: "etablissement",
+    groupe: "pilotage",
+    rang: 80,
+  },
+  cafop_admin: {
+    id: "cafop_admin",
+    libelle: "Admin CAFOP",
+    description:
+      "Gestion du Centre d'Animation et de Formation Pédagogique : promotions, groupes-classes, cohortes.",
+    portee: "cafop",
+    groupe: "formation",
+    rang: 75,
+  },
+  apfc_admin: {
+    id: "apfc_admin",
+    libelle: "Admin APFC",
+    description: "Gestion de l'Antenne Pédagogique de Formation Continue.",
+    portee: "apfc",
+    groupe: "formation",
+    rang: 75,
+  },
+  drena: {
+    id: "drena",
+    libelle: "DRENA / DRENAET",
+    description:
+      "Direction Régionale de l'Éducation Nationale : pilotage régional et supervision des structures de la région.",
+    portee: "region",
+    groupe: "pilotage",
+    rang: 70,
+  },
+  inspecteur: {
+    id: "inspecteur",
+    libelle: "Inspecteur",
+    description: "Inspection pédagogique, évaluation des enseignants, rapports d'inspection.",
+    portee: "region",
+    groupe: "pilotage",
+    rang: 65,
+  },
+  conseiller_pedagogique: {
+    id: "conseiller_pedagogique",
+    libelle: "Conseiller Pédagogique",
+    description: "Accompagnement pédagogique et suivi de la mise en œuvre des recommandations.",
+    portee: "antenne",
+    groupe: "formation",
+    rang: 55,
+  },
+  chef_antenne: {
+    id: "chef_antenne",
+    libelle: "Chef d'antenne",
+    description: "Responsable d'une antenne de formation pédagogique (rattachée APFC).",
+    portee: "antenne",
+    groupe: "formation",
+    rang: 55,
+  },
+  chef_etablissement: {
+    id: "chef_etablissement",
+    libelle: "Chef d'établissement",
+    description:
+      "Direction d'un établissement : emplois du temps, enseignants, vie scolaire, rapport d'établissement.",
+    portee: "etablissement",
+    groupe: "etablissement",
+    rang: 60,
+  },
+  enseignant: {
+    id: "enseignant",
+    libelle: "Enseignant",
+    description: "Saisie des notes, cahier de textes, absences ; consultation de l'emploi du temps.",
+    portee: "etablissement",
+    groupe: "etablissement",
+    rang: 40,
+  },
+  educateur: {
+    id: "educateur",
+    libelle: "Éducateur",
+    description: "Gestion de la vie scolaire : suivi des absences, de la discipline.",
+    portee: "etablissement",
+    groupe: "etablissement",
+    rang: 40,
+  },
+  parent: {
+    id: "parent",
+    libelle: "Parent d'élève",
+    description: "Consultation des notes, absences et emploi du temps de ses enfants.",
+    portee: "personnel",
+    groupe: "famille",
+    rang: 20,
+  },
+  eleve: {
+    id: "eleve",
+    libelle: "Élève",
+    description:
+      "Consultation de son emploi du temps, ses notes, son cahier de textes. Rôle par défaut à l'inscription.",
+    portee: "personnel",
+    groupe: "famille",
+    rang: 10,
+  },
+};
+
+/** Liste ordonnée (par rang décroissant) des définitions de rôle. */
+export const ROLES_ORDONNES: DefinitionRole[] = Object.values(ROLES).sort(
+  (a, b) => b.rang - a.rang,
+);
+
+export function estRoleValide(valeur: string): valeur is RoleId {
+  return (ROLE_IDS as readonly string[]).includes(valeur);
+}
+
+export function getRole(id: RoleId): DefinitionRole {
+  return ROLES[id];
+}
+
+export function libelleRole(id: RoleId): string {
+  return ROLES[id]?.libelle ?? id;
+}
+
+/** Le rôle technique par défaut attribué à toute nouvelle inscription (cahier §6.2). */
+export const ROLE_PAR_DEFAUT: RoleId = "eleve";
+
+/** Rôles « personnels » dont le périmètre n'est pas une entité administrative. */
+export function estRolePersonnel(id: RoleId): boolean {
+  return ROLES[id].portee === "personnel";
+}
