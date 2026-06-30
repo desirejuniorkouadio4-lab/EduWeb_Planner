@@ -170,6 +170,21 @@ enum StatutDemandePromo {
   refusee
 }
 
+/// Nature d'une alerte SMS envoyée aux parents.
+enum TypeAlerteSMS {
+  absence
+  note
+  convocation
+  info
+}
+
+/// Statut d'envoi d'un SMS (simulé tant qu'aucun fournisseur n'est branché).
+enum StatutSMS {
+  simule
+  envoye
+  echec
+}
+
 // ─────────────────────────────────────────────────────────────
 //  RBAC : Rôle, Utilisateur, Demande de rôle
 // ─────────────────────────────────────────────────────────────
@@ -911,6 +926,22 @@ model AbonnementPremium {
 
   @@index([etablissementId])
   @@map("abonnements_premium")
+}
+
+/// Alerte SMS envoyée à un parent (un enregistrement par destinataire).
+/// Champs dénormalisés : l'historique survit à la suppression des entités liées.
+model AlerteSMS {
+  id               String        @id @default(cuid())
+  etablissementNom String?
+  telephone        String
+  contenu          String
+  type             TypeAlerteSMS @default(info)
+  statut           StatutSMS     @default(simule)
+  envoyeParEmail   String?
+  creeLe           DateTime      @default(now())
+
+  @@index([creeLe])
+  @@map("alertes_sms")
 }
 
 /// Visite d'inspection d'un établissement (et éventuellement d'un enseignant) — cahier partie 6.

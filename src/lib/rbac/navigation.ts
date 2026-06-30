@@ -407,8 +407,9 @@ export const NAVIGATION: SectionNav[] = [
         segment: "vie-scolaire/alertes-sms",
         icone: "Megaphone",
         roles: ["admin", "chef_etablissement", "educateur"],
-        statut: "a_venir",
+        statut: "disponible",
         phase: 7,
+        description: "Informer les parents par SMS (absences, notes, convocations).",
       },
       {
         id: "notifications",

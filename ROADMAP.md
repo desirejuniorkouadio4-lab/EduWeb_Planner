@@ -133,7 +133,10 @@ Refonte de la fiche établissement en console de configuration (Étapes 1→5 de
       Passerelles de paiement réelles (Stripe + Mobile Money) à brancher avec les clés.
 - [x] **Assistant d'installation** (checklist de mise en route calculée depuis l'état réel :
       année, régions, référentiels, grille nationale, établissement/classes/salles, 1er emploi du
-      temps + état des intégrations Resend/Stripe/URL) · [ ] Alertes SMS (envoi réel, gated env)
+      temps + état des intégrations Resend/Stripe/URL)
+- [x] **Alertes SMS** (envoi aux parents par classe ou numéro direct : absences/notes/convocations ;
+      socle d'envoi gated par `SMS_API_KEY`, repli simulé + journalisé ; historique + statuts).
+      Modèle `AlerteSMS`. Fournisseur réel à brancher avec la clé.
 - [x] **Journal d'activité** (audit des actions sensibles, filtrable, admin) · [ ] Assistant d'installation
 
 ---
