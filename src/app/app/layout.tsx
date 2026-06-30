@@ -1,8 +1,10 @@
 import { requireUtilisateur } from "@/lib/auth/session";
+import { chargerNotifications } from "@/lib/notifications/actions";
 import { AppShell, type UtilisateurShell } from "@/components/app/app-shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const u = await requireUtilisateur();
+  const { notifications, nombreNonLues } = await chargerNotifications();
 
   const utilisateur: UtilisateurShell = {
     nomComplet: u.nomComplet,
@@ -23,5 +25,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       : null,
   };
 
-  return <AppShell utilisateur={utilisateur}>{children}</AppShell>;
+  return (
+    <AppShell
+      utilisateur={utilisateur}
+      notificationsInitiales={notifications}
+      nonLuesInitiales={nombreNonLues}
+    >
+      {children}
+    </AppShell>
+  );
 }

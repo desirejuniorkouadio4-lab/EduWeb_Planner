@@ -15,6 +15,8 @@ import {
 } from "@/lib/rbac";
 import { seDeconnecter } from "@/app/app/actions";
 import { quitterApercu } from "@/app/app/systeme/apercu/actions";
+import { ClocheNotifications } from "@/components/app/notifications/cloche";
+import type { NotificationItem } from "@/lib/notifications/actions";
 import type { DemandeEnAttenteSerialisee } from "./types";
 
 export interface UtilisateurShell {
@@ -60,9 +62,13 @@ function sectionsVisibles(u: UtilisateurShell): SectionNav[] {
 
 export function AppShell({
   utilisateur,
+  notificationsInitiales,
+  nonLuesInitiales,
   children,
 }: {
   utilisateur: UtilisateurShell;
+  notificationsInitiales: NotificationItem[];
+  nonLuesInitiales: number;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -184,6 +190,11 @@ export function AppShell({
             >
               {utilisateur.libelleRoleActif}
             </span>
+
+            <ClocheNotifications
+              notificationsInitiales={notificationsInitiales}
+              nonLuesInitiales={nonLuesInitiales}
+            />
 
             <div className="relative">
               <button

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getUtilisateurCourant } from "@/lib/auth/session";
 import { envoyerEmail } from "@/lib/email/send";
 import { gabaritDecisionRole } from "@/lib/email/templates";
+import { creerNotification } from "@/lib/notifications/creer";
 import { estRoleValide, ROLES } from "@/lib/rbac";
 
 function baseUrl(): string {
@@ -83,6 +84,14 @@ export async function approuverDemande(formData: FormData) {
     perimetreId,
   });
 
+  await creerNotification({
+    destinataireId: demande.utilisateurId,
+    type: "role",
+    titre: "Demande de rôle approuvée",
+    message: `Votre rôle « ${demande.roleDemande.libelle} » a été approuvé. Votre accès complet est désormais ouvert.`,
+    lien: "/app",
+  });
+
   const { subject, html } = gabaritDecisionRole(
     true,
     demande.roleDemande.libelle,
@@ -118,6 +127,14 @@ export async function refuserDemande(formData: FormData) {
   await journaliser(admin.id, admin.email, "demande_role.refusee", `DemandeRole:${demande.id}`, {
     utilisateur: demande.utilisateur.email,
     roleRefuse: demande.roleDemande.nomTechnique,
+  });
+
+  await creerNotification({
+    destinataireId: demande.utilisateurId,
+    type: "alerte",
+    titre: "Demande de rôle refusée",
+    message: `Votre demande pour le rôle « ${demande.roleDemande.libelle} » n'a pas été retenue. Vous pouvez soumettre une nouvelle demande depuis « Mon Identification ».`,
+    lien: "/app/mon-identification",
   });
 
   const { subject, html } = gabaritDecisionRole(

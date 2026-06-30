@@ -93,6 +93,14 @@ enum StatutPresence {
   excuse
 }
 
+/// Nature d'une notification in-app (pilote l'icône et la couleur d'affichage).
+enum TypeNotification {
+  info
+  succes
+  alerte
+  role
+}
+
 // ─────────────────────────────────────────────────────────────
 //  RBAC : Rôle, Utilisateur, Demande de rôle
 // ─────────────────────────────────────────────────────────────
@@ -151,6 +159,8 @@ model Utilisateur {
   presences        Presence[]              @relation("Presences")
   notesEleve         Note[]                  @relation("NotesEleve")
   notesSaisies       Note[]                  @relation("NotesSaisies")
+  cahiersSaisis      CahierTexte[]           @relation("CahiersSaisis")
+  notifications      Notification[]          @relation("NotificationsRecues")
   competences        CompetenceEnseignant[]  @relation("CompetencesEnseignant")
   niveauxIntervention NiveauEnseignant[]     @relation("NiveauxEnseignant")
 
@@ -413,6 +423,7 @@ model Discipline {
   affectations AffectationEnseignant[]
   appels       Appel[]
   notes        Note[]
+  cahiers      CahierTexte[]
   competences  CompetenceEnseignant[]
   effectifsEnseignant EffectifEnseignant[]
 
@@ -439,6 +450,7 @@ model Classe {
   inscriptions Inscription[]
   appels       Appel[]
   notes        Note[]
+  cahiers      CahierTexte[]
 
   creeLe     DateTime @default(now())
   misAJourLe DateTime @updatedAt
@@ -663,6 +675,50 @@ model Note {
   @@index([eleveId])
   @@index([disciplineId])
   @@map("notes")
+}
+
+/// Entrée du cahier de texte : contenu d'une séance et travail à faire, consigné par
+/// l'enseignant pour une classe/discipline à une date donnée (cahier §5.3.2).
+model CahierTexte {
+  id           String      @id @default(cuid())
+  classeId     String
+  classe       Classe      @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  disciplineId String
+  discipline   Discipline  @relation(fields: [disciplineId], references: [id])
+  date         DateTime // jour de la séance (normalisé à minuit UTC)
+
+  contenu       String // contenu de la séance / leçon traitée
+  travailAFaire String? // devoirs / travail à faire à la maison
+
+  saisiParId String
+  saisiPar   Utilisateur @relation("CahiersSaisis", fields: [saisiParId], references: [id])
+
+  creeLe     DateTime @default(now())
+  misAJourLe DateTime @updatedAt
+
+  @@index([classeId])
+  @@index([disciplineId])
+  @@index([date])
+  @@map("cahier_texte")
+}
+
+/// Notification in-app destinée à un utilisateur (socle commun, cahier §5.3.x).
+/// Tout module crée une notification via `creerNotification` (src/lib/notifications).
+model Notification {
+  id             String           @id @default(cuid())
+  destinataireId String
+  destinataire   Utilisateur      @relation("NotificationsRecues", fields: [destinataireId], references: [id], onDelete: Cascade)
+  type           TypeNotification @default(info)
+  titre          String
+  message        String
+  lien           String? // route interne optionnelle (ex : « /app/mon-identification »)
+  lu             Boolean          @default(false)
+  luLe           DateTime?
+  creeLe         DateTime         @default(now())
+
+  @@index([destinataireId, lu])
+  @@index([creeLe])
+  @@map("notifications")
 }
 
 // ─────────────────────────────────────────────────────────────

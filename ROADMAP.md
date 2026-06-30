@@ -67,7 +67,7 @@ Refonte de la fiche établissement en console de configuration (Étapes 1→5 de
 - [x] **Étape 5** : branchement du moteur de génération (bouton « Générer l'emploi du temps » →
       solveur fonctionnel + grille)
 
-## Phase 3 — Vie scolaire : noyau 🟡 (en cours)
+## Phase 3 — Vie scolaire : noyau ✅ (livrée)
 
 - [x] **Affectations enseignants** (enseignant ↔ classe ↔ discipline), filtré par établissement
 - [x] **Inscriptions élèves** (par e-mail, une classe par année), filtré par établissement
@@ -75,10 +75,16 @@ Refonte de la fiche établissement en console de configuration (Étapes 1→5 de
 - [x] Modèles `AffectationEnseignant` + `Inscription` — migrés sur Neon
 - [x] **Registre d'appel** (présences/absences/retards par classe et date ; modèles `Appel`+`Presence`)
 - [x] **Notes & bulletins** (saisie par classe/discipline/période ; bulletin avec moyennes pondérées par coefficient)
-- [ ] Cahier de texte
-- [ ] Notifications système (in-app) — socle commun
-- [ ] Vues dédiées : « Mes classes » (enseignant), « Ma classe » (élève), « Mes enfants » (parent)
-- [ ] Consultation des absences par parent / élève
+- [x] **Cahier de texte** (contenu des séances + travail à faire par classe/discipline/date ;
+      saisie admin/chef/enseignant, **consultation lecture seule** élève/parent ; modèle `CahierTexte`)
+- [x] **Notifications système (in-app) — socle commun** (modèle `Notification` + helper centralisé
+      `creerNotification`, cloche dans le header avec compteur non-lues, page liste, marquage lu /
+      tout lu ; premier producteur branché : décisions de rôle à l'approbation/refus)
+- [x] **Vues dédiées par rôle** : « Mes classes » (enseignant — classes affectées + accès direct
+      appel/cahier/notes), « Ma classe » (élève — cahier de texte, notes, assiduité), « Mes enfants »
+      (parent — suivi par enfant)
+- [x] **Consultation des absences par parent / élève** (intégrée à « Ma classe » et « Mes enfants »
+      via `src/lib/vie-scolaire/eleve.ts`)
 
 ## Phase 4 — Emplois du temps (solveur) 🟡 — module phare
 
