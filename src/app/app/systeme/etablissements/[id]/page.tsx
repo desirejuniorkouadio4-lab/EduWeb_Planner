@@ -95,32 +95,45 @@ export default async function ConfigurationEtablissementPage({ params }: { param
   // Lignes de volumes horaires par niveau (séances).
   const etabMap = new Map<string, { seances: number[]; coef: number }>();
   const natMap = new Map<string, { heures: number; coef: number }>();
+  const niveauxAvecOverride = new Set<string>();
   for (const g of grilles) {
     const cle = `${g.niveauId}:${g.disciplineId}`;
-    if (g.etablissementId === id) etabMap.set(cle, { seances: g.seancesMinutes, coef: g.coefficient });
-    else natMap.set(cle, { heures: g.heuresHebdo, coef: g.coefficient });
+    if (g.etablissementId === id) {
+      etabMap.set(cle, { seances: g.seancesMinutes, coef: g.coefficient });
+      if (g.seancesMinutes.length > 0) niveauxAvecOverride.add(g.niveauId);
+    } else {
+      natMap.set(cle, { heures: g.heuresHebdo, coef: g.coefficient });
+    }
   }
-  const niveauxVolumes = niveaux.map((nv) => ({
-    id: nv.id,
-    nom: nv.nom,
-    lignes: disciplines.map((d): DisciplineLigne => {
-      const o = etabMap.get(`${nv.id}:${d.id}`);
-      const nat = natMap.get(`${nv.id}:${d.id}`);
-      let seances: number[];
-      let coef: number;
-      if (o && o.seances.length > 0) {
-        seances = o.seances;
-        coef = o.coef;
-      } else if (nat && nat.heures > 0) {
-        seances = Array.from({ length: Math.max(1, Math.round(nat.heures)) }, () => 60);
-        coef = nat.coef;
-      } else {
-        seances = [];
-        coef = o?.coef ?? nat?.coef ?? 1;
-      }
-      return { disciplineId: d.id, nom: d.nom, couleur: d.couleur, coef, seances };
-    }),
-  }));
+  // Si l'établissement a configuré sa propre grille pour un niveau, on n'affiche QUE ses
+  // disciplines (pas de re-remplissage par le modèle national). Sinon, modèle national par défaut.
+  const niveauxVolumes = niveaux.map((nv) => {
+    const propre = niveauxAvecOverride.has(nv.id);
+    const lignes = disciplines
+      .map((d): DisciplineLigne | null => {
+        const o = etabMap.get(`${nv.id}:${d.id}`);
+        const nat = natMap.get(`${nv.id}:${d.id}`);
+        if (propre) {
+          if (o && o.seances.length > 0) {
+            return { disciplineId: d.id, nom: d.nom, couleur: d.couleur, coef: o.coef, seances: o.seances };
+          }
+          return null;
+        }
+        if (nat && nat.heures > 0) {
+          return {
+            disciplineId: d.id,
+            nom: d.nom,
+            couleur: d.couleur,
+            coef: nat.coef,
+            seances: Array.from({ length: Math.max(1, Math.round(nat.heures)) }, () => 60),
+          };
+        }
+        return null;
+      })
+      .filter((x): x is DisciplineLigne => x !== null);
+    return { id: nv.id, nom: nv.nom, lignes };
+  });
+  const toutesDisciplines = disciplines.map((d) => ({ id: d.id, nom: d.nom, couleur: d.couleur }));
 
   // Lignes effectifs par niveau.
   const configMap = new Map(configs.map((c) => [c.niveauId, c]));
@@ -233,7 +246,7 @@ export default async function ConfigurationEtablissementPage({ params }: { param
 
       {/* 7. Volumes horaires */}
       <Bloc id="volumes" titre="Volumes horaires par niveau et par discipline" sousTitre="Définissez la durée d'une séance (en minutes) et le nombre de séances hebdomadaires. Le volume est calculé automatiquement.">
-        <VolumesBlock etablissementId={id} niveaux={niveauxVolumes} />
+        <VolumesBlock etablissementId={id} niveaux={niveauxVolumes} toutesDisciplines={toutesDisciplines} />
       </Bloc>
 
       {/* 8. Utilisateurs (enseignants) */}

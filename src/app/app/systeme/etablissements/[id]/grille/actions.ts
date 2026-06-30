@@ -45,29 +45,36 @@ export async function enregistrerSeances(_prev: EtatForm, formData: FormData): P
   }
 
   try {
-    const operations = Object.entries(payload).map(([disciplineId, ligne]) => {
+    // Disciplines RÉELLEMENT configurées (au moins une séance > 0) : elles seules sont conservées.
+    const aGarder: { disciplineId: string; seances: number[]; coef: number }[] = [];
+    for (const [disciplineId, ligne] of Object.entries(payload)) {
       const seances = (ligne.seances ?? [])
         .map((m) => Math.max(0, Math.round(Number(m) || 0)))
         .filter((m) => m > 0);
-      const coef = Math.max(0, Number(ligne.coef) || 0);
-      const heuresHebdo = seances.reduce((a, b) => a + b, 0) / 60;
-      return prisma.grilleHoraire.upsert({
-        where: {
-          niveauId_disciplineId_etablissementId: { niveauId, disciplineId, etablissementId },
-        },
-        update: { seancesMinutes: seances, coefficient: coef, heuresHebdo, nbSeances: seances.length },
-        create: {
-          niveauId,
-          disciplineId,
-          etablissementId,
-          seancesMinutes: seances,
-          coefficient: coef,
-          heuresHebdo,
-          nbSeances: seances.length,
-        },
-      });
+      if (seances.length === 0) continue;
+      aGarder.push({ disciplineId, seances, coef: Math.max(0, Number(ligne.coef) || 0) });
+    }
+    const idsGardes = aGarder.map((g) => g.disciplineId);
+
+    // La grille de l'établissement pour ce niveau devient EXACTEMENT ce qui est saisi :
+    // on supprime les surcharges des disciplines retirées / vidées.
+    await prisma.grilleHoraire.deleteMany({
+      where: { etablissementId, niveauId, disciplineId: { notIn: idsGardes.length > 0 ? idsGardes : ["__aucune__"] } },
     });
-    await Promise.all(operations);
+
+    await Promise.all(
+      aGarder.map((g) => {
+        const heuresHebdo = g.seances.reduce((a, b) => a + b, 0) / 60;
+        return prisma.grilleHoraire.upsert({
+          where: { niveauId_disciplineId_etablissementId: { niveauId, disciplineId: g.disciplineId, etablissementId } },
+          update: { seancesMinutes: g.seances, coefficient: g.coef, heuresHebdo, nbSeances: g.seances.length },
+          create: { niveauId, disciplineId: g.disciplineId, etablissementId, seancesMinutes: g.seances, coefficient: g.coef, heuresHebdo, nbSeances: g.seances.length },
+        });
+      }),
+    );
+
+    // On revalide la PAGE DE CONFIG (où vit le bloc Volumes) ET la sous-page grille.
+    revalidatePath(`/app/systeme/etablissements/${etablissementId}`);
     revalidatePath(`/app/systeme/etablissements/${etablissementId}/grille`);
   } catch (e) {
     console.error("[seances] erreur :", e);

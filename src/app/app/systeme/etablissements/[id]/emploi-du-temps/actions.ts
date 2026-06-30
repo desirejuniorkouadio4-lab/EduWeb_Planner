@@ -187,10 +187,15 @@ export async function genererEmploiDuTemps(
     // Grille effective par (niveau, discipline) : surcharge établissement prioritaire.
     const grilleEtab = new Map<string, { seances: number[]; disc: { id: string; nom: string } }>();
     const grilleNat = new Map<string, { heures: number; disc: { id: string; nom: string } }>();
+    const niveauxAvecOverride = new Set<string>();
     for (const g of grilles) {
       const cle = `${g.niveauId}:${g.disciplineId}`;
-      if (g.etablissementId === id) grilleEtab.set(cle, { seances: g.seancesMinutes, disc: g.discipline });
-      else grilleNat.set(cle, { heures: g.heuresHebdo, disc: g.discipline });
+      if (g.etablissementId === id) {
+        grilleEtab.set(cle, { seances: g.seancesMinutes, disc: g.discipline });
+        if (g.seancesMinutes.length > 0) niveauxAvecOverride.add(g.niveauId);
+      } else {
+        grilleNat.set(cle, { heures: g.heuresHebdo, disc: g.discipline });
+      }
     }
 
     // Unités-enseignants anonymes par pool (cycle:disciplineId), depuis les effectifs déclarés.
@@ -211,15 +216,20 @@ export async function genererEmploiDuTemps(
       const cycle = classe.niveau.cycle;
       const cycleLib = CYCLE_LABEL[cycle] ?? cycle;
       const disciplinesNiveau = new Map<string, { nom: string; seances: number[] }>();
-      for (const [k, v] of grilleEtab) {
-        if (k.startsWith(`${classe.niveau.id}:`) && v.seances.length > 0) {
-          disciplinesNiveau.set(v.disc.id, { nom: v.disc.nom, seances: v.seances });
+      // Si l'établissement a sa propre grille pour ce niveau, on l'utilise EXCLUSIVEMENT
+      // (on n'ajoute pas les disciplines du modèle national non configurées).
+      if (niveauxAvecOverride.has(classe.niveau.id)) {
+        for (const [k, v] of grilleEtab) {
+          if (k.startsWith(`${classe.niveau.id}:`) && v.seances.length > 0) {
+            disciplinesNiveau.set(v.disc.id, { nom: v.disc.nom, seances: v.seances });
+          }
         }
-      }
-      for (const [k, v] of grilleNat) {
-        if (k.startsWith(`${classe.niveau.id}:`) && !disciplinesNiveau.has(v.disc.id) && v.heures > 0) {
-          const nb = Math.max(1, Math.round(v.heures));
-          disciplinesNiveau.set(v.disc.id, { nom: v.disc.nom, seances: Array.from({ length: nb }, () => 60) });
+      } else {
+        for (const [k, v] of grilleNat) {
+          if (k.startsWith(`${classe.niveau.id}:`) && v.heures > 0) {
+            const nb = Math.max(1, Math.round(v.heures));
+            disciplinesNiveau.set(v.disc.id, { nom: v.disc.nom, seances: Array.from({ length: nb }, () => 60) });
+          }
         }
       }
 

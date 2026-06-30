@@ -6,9 +6,11 @@ import { GrilleNiveauEditor, type DisciplineLigne } from "./grille/grille-editor
 export function VolumesBlock({
   etablissementId,
   niveaux,
+  toutesDisciplines,
 }: {
   etablissementId: string;
   niveaux: { id: string; nom: string; lignes: DisciplineLigne[] }[];
+  toutesDisciplines: { id: string; nom: string; couleur: string | null }[];
 }) {
   const [actif, setActif] = useState(niveaux[0]?.id ?? "");
   const niveauActif = niveaux.find((n) => n.id === actif) ?? niveaux[0];
@@ -45,6 +47,7 @@ export function VolumesBlock({
           niveauId={niveauActif.id}
           niveauNom={niveauActif.nom}
           disciplines={niveauActif.lignes}
+          toutesDisciplines={toutesDisciplines}
         />
       </div>
     </div>
