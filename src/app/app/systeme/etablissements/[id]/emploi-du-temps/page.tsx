@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, Card } from "@/components/app/ui";
 import { GenerationButton } from "./generation-button";
 import { GrilleInteractive } from "./grille-interactive";
+import { creneauxHoraires } from "@/lib/emploi-du-temps/horaires";
 
 export const metadata: Metadata = { title: "Emploi du temps" };
 export const dynamic = "force-dynamic";
@@ -64,6 +65,7 @@ export default async function EmploiDuTempsPage({
   for (const c of filtres) for (let d = 1; d < c.duree; d++) couvert.add(`${c.jour}:${c.periode + d}`);
 
   const periodes = Array.from({ length: Math.max(1, etab.creneauxParJour) }, (_, i) => i);
+  const horaires = creneauxHoraires(etab);
 
   function contenu(c: (typeof creneaux)[number]) {
     if (vue === "classe") return { t1: c.disciplineNom, t2: c.salleNom, t3: c.enseignantNom, did: c.disciplineId };
@@ -74,7 +76,7 @@ export default async function EmploiDuTempsPage({
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <Link href={`/app/systeme/etablissements/${id}`} className="inline-flex items-center gap-2 text-sm font-medium text-forest-700 hover:text-forest-900">
-        <ArrowLeft size={16} /> Configuration de l'établissement
+        <ArrowLeft size={16} /> Configuration de l&apos;établissement
       </Link>
 
       <PageHeader
@@ -94,7 +96,7 @@ export default async function EmploiDuTempsPage({
         </div>
         <GenerationButton etablissementId={id} />
         <p className="mt-3 text-xs text-ink-700/55">
-          La génération utilise les <strong>effectifs d'enseignants</strong> déclarés par cycle et
+          La génération utilise les <strong>effectifs d&apos;enseignants</strong> déclarés par cycle et
           discipline (bloc « Effectifs des enseignants » de la configuration) — aucun compte
           nominatif requis.
         </p>
@@ -141,13 +143,14 @@ export default async function EmploiDuTempsPage({
               creneauxParJour={etab.creneauxParJour}
               jours={JOURS}
               couleurs={couleursRecord}
+              horaires={horaires ?? undefined}
             />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-sm">
                 <thead>
                   <tr>
-                    <th className="border border-cream-200 bg-cream-50 px-2 py-2 text-xs font-semibold text-ink-700/60">Période</th>
+                    <th className="border border-cream-200 bg-cream-50 px-2 py-2 text-xs font-semibold text-ink-700/60">Horaire</th>
                     {JOURS.map((j) => (
                       <th key={j} className="border border-cream-200 bg-cream-50 px-2 py-2 text-xs font-semibold text-forest-800">{j}</th>
                     ))}
@@ -156,8 +159,15 @@ export default async function EmploiDuTempsPage({
                 <tbody>
                   {periodes.map((per) => (
                     <tr key={per}>
-                      <td className="border border-cream-200 bg-cream-50 px-2 py-2 text-center text-xs font-medium text-ink-700/60">
-                        P{per + 1}
+                      <td className="whitespace-nowrap border border-cream-200 bg-cream-50 px-2 py-2 text-center text-[0.7rem] font-medium text-ink-700/60">
+                        {horaires?.[per] ? (
+                          <span className="leading-tight">
+                            {horaires[per].debut}
+                            <span className="block text-ink-700/40">{horaires[per].fin}</span>
+                          </span>
+                        ) : (
+                          `P${per + 1}`
+                        )}
                       </td>
                       {JOURS.map((_, jour) => {
                         const k = `${jour}:${per}`;

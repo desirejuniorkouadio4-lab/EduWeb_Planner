@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { resoudreEtablissement } from "@/lib/vie-scolaire/contexte";
 import { PageHeader, Card } from "@/components/app/ui";
 import { SelecteurEtablissement } from "@/components/app/selecteur-etablissement";
+import { creneauxHoraires, type CreneauHoraire } from "@/lib/emploi-du-temps/horaires";
 
 export const metadata: Metadata = { title: "Emplois du temps" };
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ const BASE = "/app/vie-scolaire/emplois-du-temps";
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
 interface CreneauVue {
+  etablissementId: string;
   classeNom: string;
   disciplineNom: string;
   enseignantNom: string;
@@ -21,7 +23,15 @@ interface CreneauVue {
   periode: number;
 }
 
-function Grille({ creneaux, modeEnseignant }: { creneaux: CreneauVue[]; modeEnseignant: boolean }) {
+function Grille({
+  creneaux,
+  modeEnseignant,
+  horaires,
+}: {
+  creneaux: CreneauVue[];
+  modeEnseignant: boolean;
+  horaires?: CreneauHoraire[];
+}) {
   if (creneaux.length === 0) {
     return (
       <p className="flex items-center gap-2 py-6 text-sm text-ink-700/60">
@@ -40,7 +50,7 @@ function Grille({ creneaux, modeEnseignant }: { creneaux: CreneauVue[]; modeEnse
       <table className="w-full min-w-[680px] border-collapse text-xs">
         <thead>
           <tr>
-            <th className="w-16 border border-cream-200 bg-cream-50 p-2 font-semibold text-ink-700/60">Période</th>
+            <th className="w-20 border border-cream-200 bg-cream-50 p-2 font-semibold text-ink-700/60">Horaire</th>
             {JOURS.map((j) => (
               <th key={j} className="border border-cream-200 bg-cream-50 p-2 font-semibold text-forest-800">{j}</th>
             ))}
@@ -49,7 +59,16 @@ function Grille({ creneaux, modeEnseignant }: { creneaux: CreneauVue[]; modeEnse
         <tbody>
           {periodes.map((p) => (
             <tr key={p}>
-              <td className="border border-cream-200 bg-cream-50/60 p-2 text-center font-semibold text-ink-700/60">P{p + 1}</td>
+              <td className="whitespace-nowrap border border-cream-200 bg-cream-50/60 p-2 text-center font-semibold text-ink-700/60">
+                {horaires?.[p] ? (
+                  <span className="leading-tight">
+                    {horaires[p].debut}
+                    <span className="block text-ink-700/40">{horaires[p].fin}</span>
+                  </span>
+                ) : (
+                  `P${p + 1}`
+                )}
+              </td>
               {JOURS.map((_, j) => {
                 const c = map.get(`${j}|${p}`);
                 return (
@@ -78,9 +97,28 @@ async function creneauxDe(where: object): Promise<CreneauVue[]> {
   const liste = await prisma.creneau.findMany({
     where,
     orderBy: [{ jour: "asc" }, { periode: "asc" }],
-    select: { classeNom: true, disciplineNom: true, enseignantNom: true, salleNom: true, jour: true, periode: true },
+    select: { etablissementId: true, classeNom: true, disciplineNom: true, enseignantNom: true, salleNom: true, jour: true, periode: true },
   });
   return liste;
+}
+
+// Résout les créneaux horaires réels à partir de l'établissement du planning affiché.
+async function horairesDe(creneaux: CreneauVue[]): Promise<CreneauHoraire[] | null> {
+  const etabId = creneaux[0]?.etablissementId;
+  if (!etabId) return null;
+  const etab = await prisma.etablissement.findUnique({
+    where: { id: etabId },
+    select: {
+      creneauxParJour: true,
+      horaireDebutMatin: true,
+      horairePauseMatinDebut: true,
+      horairePauseMatinFin: true,
+      horairePauseMidiDebut: true,
+      horaireRepriseApresMidi: true,
+      horaireFinJournee: true,
+    },
+  });
+  return etab ? creneauxHoraires(etab) : null;
 }
 
 export default async function EmploisDuTempsPage({
@@ -103,11 +141,12 @@ export default async function EmploisDuTempsPage({
   // Enseignant : son propre emploi du temps.
   if (u.roleReel === "enseignant") {
     const creneaux = await creneauxDe({ enseignantId: u.id });
+    const horaires = await horairesDe(creneaux);
     return (
       <div className="mx-auto max-w-5xl space-y-6">
         <PageHeader titre="Mon emploi du temps" description="Vos cours de la semaine." />
         <Card>
-          <Grille creneaux={creneaux} modeEnseignant />
+          <Grille creneaux={creneaux} modeEnseignant horaires={horaires ?? undefined} />
         </Card>
       </div>
     );
@@ -121,11 +160,12 @@ export default async function EmploisDuTempsPage({
       select: { classeId: true, classe: { select: { nom: true } } },
     });
     const creneaux = insc ? await creneauxDe({ classeId: insc.classeId }) : [];
+    const horaires = await horairesDe(creneaux);
     return (
       <div className="mx-auto max-w-5xl space-y-6">
         <PageHeader titre="Emploi du temps" description={insc ? `Classe ${insc.classe.nom}` : "Aucune classe"} />
         <Card>
-          <Grille creneaux={creneaux} modeEnseignant={false} />
+          <Grille creneaux={creneaux} modeEnseignant={false} horaires={horaires ?? undefined} />
         </Card>
       </div>
     );
@@ -141,6 +181,7 @@ export default async function EmploisDuTempsPage({
     const classes = [...new Map(inscriptions.map((i) => [i.classe.id, i.classe.nom])).entries()].map(([id, nom]) => ({ id, nom }));
     const classeSel = classes.find((c) => c.id === sp.classe) ?? classes[0] ?? null;
     const creneaux = classeSel ? await creneauxDe({ classeId: classeSel.id }) : [];
+    const horaires = await horairesDe(creneaux);
     return (
       <div className="mx-auto max-w-5xl space-y-6">
         <PageHeader titre="Emploi du temps" description="L'emploi du temps de vos enfants." />
@@ -157,7 +198,7 @@ export default async function EmploisDuTempsPage({
           </Card>
         )}
         <Card>
-          <Grille creneaux={creneaux} modeEnseignant={false} />
+          <Grille creneaux={creneaux} modeEnseignant={false} horaires={horaires ?? undefined} />
         </Card>
       </div>
     );
@@ -193,6 +234,7 @@ export default async function EmploisDuTempsPage({
   const classes = await prisma.classe.findMany({ where: { etablissementId: etabId }, orderBy: { nom: "asc" }, select: { id: true, nom: true } });
   const classeSel = classes.find((c) => c.id === sp.classe) ?? classes[0] ?? null;
   const creneaux = classeSel ? await creneauxDe({ classeId: classeSel.id }) : [];
+  const horaires = await horairesDe(creneaux);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -216,7 +258,7 @@ export default async function EmploisDuTempsPage({
       {classeSel && (
         <Card>
           <h2 className="mb-3 font-display text-base font-bold text-forest-900">{classeSel.nom}</h2>
-          <Grille creneaux={creneaux} modeEnseignant={false} />
+          <Grille creneaux={creneaux} modeEnseignant={false} horaires={horaires ?? undefined} />
         </Card>
       )}
     </div>

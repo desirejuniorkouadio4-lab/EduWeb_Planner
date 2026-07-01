@@ -24,12 +24,14 @@ export function GrilleInteractive({
   creneauxParJour,
   jours,
   couleurs,
+  horaires,
 }: {
   classeId: string;
   creneaux: CreneauPlain[];
   creneauxParJour: number;
   jours: string[];
   couleurs: Record<string, string | null>;
+  horaires?: { debut: string; fin: string }[];
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [survol, setSurvol] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export function GrilleInteractive({
   return (
     <div className="space-y-3">
       <p className="flex items-center gap-2 text-xs text-ink-700/60">
-        <Move size={14} /> Glissez un cours vers une case libre pour l'ajuster — les conflits sont
+        <Move size={14} /> Glissez un cours vers une case libre pour l&apos;ajuster — les conflits sont
         re-vérifiés en temps réel.
       </p>
 
@@ -101,7 +103,7 @@ export function GrilleInteractive({
         <table className="w-full min-w-[720px] border-collapse text-sm">
           <thead>
             <tr>
-              <th className="border border-cream-200 bg-cream-50 px-2 py-2 text-xs font-semibold text-ink-700/60">Période</th>
+              <th className="border border-cream-200 bg-cream-50 px-2 py-2 text-xs font-semibold text-ink-700/60">Horaire</th>
               {jours.map((j) => (
                 <th key={j} className="border border-cream-200 bg-cream-50 px-2 py-2 text-xs font-semibold text-forest-800">{j}</th>
               ))}
@@ -110,7 +112,16 @@ export function GrilleInteractive({
           <tbody>
             {periodes.map((per) => (
               <tr key={per}>
-                <td className="border border-cream-200 bg-cream-50 px-2 py-2 text-center text-xs font-medium text-ink-700/60">P{per + 1}</td>
+                <td className="whitespace-nowrap border border-cream-200 bg-cream-50 px-2 py-2 text-center text-[0.7rem] font-medium text-ink-700/60">
+                  {horaires?.[per] ? (
+                    <span className="leading-tight">
+                      {horaires[per].debut}
+                      <span className="block text-ink-700/40">{horaires[per].fin}</span>
+                    </span>
+                  ) : (
+                    `P${per + 1}`
+                  )}
+                </td>
                 {jours.map((_, jour) => {
                   const k = `${jour}:${per}`;
                   if (couvert.has(k)) return null;
