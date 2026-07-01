@@ -374,6 +374,68 @@ export function resoudre(p: Probleme): Resultat {
     }
   }
 
+  // ── Optimisation (V2) : échanges de créneaux entre classes ──
+  // Échange les temps de deux cours de classes différentes (chacun conserve sa salle et son
+  // enseignant) quand la pénalité combinée des deux classes diminue. Échantillonnage strié +
+  // budget borné ; n'applique que des échanges améliorants (score non régressif).
+  function optimiserSwaps() {
+    const n = placements.length;
+    if (n < 2) return;
+    const parClasse = grouperParClasse();
+    const classeVac = new Map<string, 0 | 1 | null>();
+    for (const b of p.blocs) if (!classeVac.has(b.classeId)) classeVac.set(b.classeId, b.vacationGroupe);
+    const W = 30;
+    const stride = Math.max(1, Math.floor(n / W));
+    let budget = 300_000;
+    for (let pass = 0; pass < 2 && budget > 0; pass++) {
+      let ameliore = false;
+      for (let a = 0; a < n && budget > 0; a++) {
+        const pl1 = placements[a];
+        for (let k = 1; k <= W; k++) {
+          if (--budget <= 0) break;
+          const pl2 = placements[(a + k * stride) % n];
+          if (pl2 === pl1 || pl1.classeId === pl2.classeId || pl1.duree !== pl2.duree) continue;
+          if (pl1.jour === pl2.jour && pl1.periode === pl2.periode) continue;
+          const [d1, f1] = bornesPeriodes(p, classeVac.get(pl1.classeId) ?? null);
+          const [d2, f2] = bornesPeriodes(p, classeVac.get(pl2.classeId) ?? null);
+          if (pl2.periode < d1 || pl2.periode + pl1.duree - 1 > f1) continue;
+          if (pl1.periode < d2 || pl1.periode + pl2.duree - 1 > f2) continue;
+          const cls1 = parClasse.get(pl1.classeId)!;
+          const cls2 = parClasse.get(pl2.classeId)!;
+          const avant = penaliteClasse(cls1) + penaliteClasse(cls2);
+          const oj1 = pl1.jour, op1 = pl1.periode, oj2 = pl2.jour, op2 = pl2.periode;
+          basculer(oj1, op1, pl1.duree, pl1.classeId, pl1.salleNom, pl1.enseignantId, false);
+          basculer(oj2, op2, pl2.duree, pl2.classeId, pl2.salleNom, pl2.enseignantId, false);
+          // Faisabilité de l'échange (chaque cours va sur le créneau de l'autre).
+          let faisable = creneauLibre(oj2, op2, pl1.duree, pl1.classeId, pl1.salleNom, pl1.enseignantId);
+          if (faisable) {
+            basculer(oj2, op2, pl1.duree, pl1.classeId, pl1.salleNom, pl1.enseignantId, true);
+            faisable = creneauLibre(oj1, op1, pl2.duree, pl2.classeId, pl2.salleNom, pl2.enseignantId);
+            basculer(oj2, op2, pl1.duree, pl1.classeId, pl1.salleNom, pl1.enseignantId, false);
+          }
+          if (!faisable) {
+            basculer(oj1, op1, pl1.duree, pl1.classeId, pl1.salleNom, pl1.enseignantId, true);
+            basculer(oj2, op2, pl2.duree, pl2.classeId, pl2.salleNom, pl2.enseignantId, true);
+            continue;
+          }
+          pl1.jour = oj2; pl1.periode = op2;
+          pl2.jour = oj1; pl2.periode = op1;
+          const apres = penaliteClasse(cls1) + penaliteClasse(cls2);
+          if (apres < avant) {
+            basculer(pl1.jour, pl1.periode, pl1.duree, pl1.classeId, pl1.salleNom, pl1.enseignantId, true);
+            basculer(pl2.jour, pl2.periode, pl2.duree, pl2.classeId, pl2.salleNom, pl2.enseignantId, true);
+            ameliore = true;
+          } else {
+            pl1.jour = oj1; pl1.periode = op1; pl2.jour = oj2; pl2.periode = op2;
+            basculer(oj1, op1, pl1.duree, pl1.classeId, pl1.salleNom, pl1.enseignantId, true);
+            basculer(oj2, op2, pl2.duree, pl2.classeId, pl2.salleNom, pl2.enseignantId, true);
+          }
+        }
+      }
+      if (!ameliore) break;
+    }
+  }
+
   const succes = placer(0);
 
   if (!succes) {
@@ -390,6 +452,8 @@ export function resoudre(p: Probleme): Resultat {
 
   // Qualité de la première solution, puis optimisation, puis qualité finale.
   const scoreInitial = scoreDe(evaluerPenalites());
+  optimiserDeplacements();
+  optimiserSwaps();
   optimiserDeplacements();
   const penalites = evaluerPenalites();
   const score = scoreDe(penalites);
