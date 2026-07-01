@@ -104,52 +104,78 @@ export async function calculerClasses(_prev: EtatForm, formData: FormData): Prom
     const annee = await prisma.anneeScolaire.findFirst({ where: { active: true } });
 
     let totalClasses = 0;
+    let modifie = false; // le jeu de classes a-t-il changé ? (invalide l'emploi du temps)
     for (const niveau of niveaux) {
       const effectif = n(formData, `effectif_${niveau.id}`, 0);
       const vacation = String(formData.get(`vacation_${niveau.id}`) ?? "simple");
+
+      // Classes existantes de ce niveau (avec le nb d'inscrits, pour supprimer en priorité les vides).
+      const existantes = await prisma.classe.findMany({
+        where: { etablissementId: id, niveauId: niveau.id },
+        select: { id: true, creeLe: true, _count: { select: { inscriptions: true } } },
+      });
+
       if (effectif <= 0) {
-        // Réinitialise la config de ce niveau s'il est vidé.
-        await prisma.niveauEtablissement.deleteMany({
-          where: { etablissementId: id, niveauId: niveau.id },
-        });
+        // Niveau vidé : on supprime sa config ET ses classes.
+        if (existantes.length > 0) {
+          await prisma.classe.deleteMany({ where: { etablissementId: id, niveauId: niveau.id } });
+          modifie = true;
+        }
+        await prisma.niveauEtablissement.deleteMany({ where: { etablissementId: id, niveauId: niveau.id } });
         continue;
       }
+
       const nbClasses = Math.ceil(effectif / effectifSouhaite);
       totalClasses += nbClasses;
+      const effectifParClasse = Math.round(effectif / nbClasses);
 
       await prisma.niveauEtablissement.upsert({
         where: { etablissementId_niveauId: { etablissementId: id, niveauId: niveau.id } },
         update: { effectif, vacation: vacation as never, nbClasses },
-        create: {
-          etablissementId: id,
-          niveauId: niveau.id,
-          effectif,
-          vacation: vacation as never,
-          nbClasses,
-        },
+        create: { etablissementId: id, niveauId: niveau.id, effectif, vacation: vacation as never, nbClasses },
       });
 
-      // Crée les classes manquantes (non destructif).
-      const existantes = await prisma.classe.count({
-        where: { etablissementId: id, niveauId: niveau.id },
-      });
-      const aCreer = nbClasses - existantes;
-      const effectifParClasse = Math.round(effectif / nbClasses);
-      for (let k = 0; k < aCreer; k++) {
-        await prisma.classe.create({
-          data: {
-            nom: `${niveau.nom} ${lettreClasse(existantes + k)}`,
-            etablissementId: id,
-            niveauId: niveau.id,
-            effectif: effectifParClasse,
-            regimeVacation: vacation as never,
-            anneeScolaireId: annee?.id ?? null,
-          },
-        });
+      // Synchronise le nombre de classes EXACTEMENT à nbClasses (création OU suppression du surplus).
+      if (nbClasses > existantes.length) {
+        for (let k = existantes.length; k < nbClasses; k++) {
+          await prisma.classe.create({
+            data: {
+              nom: `${niveau.nom} ${lettreClasse(k)}`,
+              etablissementId: id,
+              niveauId: niveau.id,
+              effectif: effectifParClasse,
+              regimeVacation: vacation as never,
+              anneeScolaireId: annee?.id ?? null,
+            },
+          });
+        }
+        modifie = true;
+      } else if (nbClasses < existantes.length) {
+        // Supprime le surplus, en priorisant les classes sans élèves, puis les plus récentes.
+        const aSupprimer = [...existantes]
+          .sort((a, b) => a._count.inscriptions - b._count.inscriptions || b.creeLe.getTime() - a.creeLe.getTime())
+          .slice(0, existantes.length - nbClasses)
+          .map((c) => c.id);
+        await prisma.classe.deleteMany({ where: { id: { in: aSupprimer } } });
+        modifie = true;
       }
+
+      // Aligne l'effectif des classes restantes sur le nouveau dimensionnement.
+      await prisma.classe.updateMany({
+        where: { etablissementId: id, niveauId: niveau.id },
+        data: { effectif: effectifParClasse, regimeVacation: vacation as never },
+      });
     }
+
+    // Un changement du jeu de classes rend l'emploi du temps généré obsolète : on le purge.
+    if (modifie) {
+      await prisma.creneau.deleteMany({ where: { etablissementId: id } });
+    }
+
     revalidatePath(`/app/systeme/etablissements/${id}`);
-    return { ok: true, message: `Classes calculées : ${totalClasses} division(s) au total.` };
+    revalidatePath(`/app/systeme/etablissements/${id}/emploi-du-temps`);
+    const suffixe = modifie ? " L'emploi du temps a été réinitialisé (à régénérer)." : "";
+    return { ok: true, message: `Classes calculées : ${totalClasses} division(s) au total.${suffixe}` };
   } catch (e) {
     console.error("[calcul-classes] erreur :", e);
     return { ok: false, message: "Erreur technique (base de données connectée ?)." };
